@@ -4,6 +4,7 @@ import '../design/rv_colors.dart';
 import '../models/app_user.dart';
 import '../models/car_spot.dart';
 import '../widgets/page_title.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/rv_glass.dart';
 import '../widgets/stats.dart';
 
@@ -14,6 +15,7 @@ class ProfilePage extends StatelessWidget {
     required this.totalPoints,
     required this.currentUser,
     required this.onSignOut,
+    required this.onEditProfile,
     this.onOpenModeration,
   });
 
@@ -21,6 +23,7 @@ class ProfilePage extends StatelessWidget {
   final int totalPoints;
   final AppUser currentUser;
   final VoidCallback onSignOut;
+  final VoidCallback onEditProfile;
   final VoidCallback? onOpenModeration;
 
   @override
@@ -49,17 +52,10 @@ class ProfilePage extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
+                  ProfileAvatar(
+                    username: currentUser.username,
+                    avatarUrl: currentUser.avatarUrl,
                     radius: 28,
-                    backgroundColor: RvColors.crimson,
-                    child: Text(
-                      currentUser.username.characters.first.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                      ),
-                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -78,10 +74,28 @@ class ProfilePage extends StatelessWidget {
                           '${currentUser.country} spotter',
                           style: const TextStyle(color: RvColors.mutedText),
                         ),
+                        if (currentUser.bio.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            currentUser.bio,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: RvColors.titanium),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onEditProfile,
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Edit profile'),
+                ),
               ),
               const SizedBox(height: 20),
               _LevelPanel(progression: progression),

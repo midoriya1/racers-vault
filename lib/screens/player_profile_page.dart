@@ -5,6 +5,7 @@ import '../models/app_user.dart';
 import '../models/car_spot.dart';
 import '../services/vault_repository.dart';
 import '../widgets/page_title.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/rv_glass.dart';
 import '../widgets/spot_card.dart';
 import '../widgets/stats.dart';
@@ -35,6 +36,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
   bool _isFollowing = false;
   bool _isLoadingFollow = true;
   bool _isSavingFollow = false;
+  AppUser? _publicUser;
 
   List<CarSpot> get _playerSpots =>
       widget.spots.where((spot) => spot.spotter == widget.username).toList()
@@ -54,6 +56,21 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
   void initState() {
     super.initState();
     _loadFollowState();
+    _loadPublicUser();
+  }
+
+  Future<void> _loadPublicUser() async {
+    final targetUserId = _targetUserId;
+    if (targetUserId == null) {
+      return;
+    }
+    final user = await widget.repository.loadUserById(targetUserId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _publicUser = user;
+    });
   }
 
   Future<void> _loadFollowState() async {
@@ -139,6 +156,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
             const SizedBox(height: 16),
             _ProfileHero(
               username: widget.username,
+              publicUser: _publicUser,
               stats: stats,
               isCurrentUser: _isCurrentUser,
               isFollowing: _isFollowing,
@@ -207,6 +225,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
 class _ProfileHero extends StatelessWidget {
   const _ProfileHero({
     required this.username,
+    required this.publicUser,
     required this.stats,
     required this.isCurrentUser,
     required this.isFollowing,
@@ -216,6 +235,7 @@ class _ProfileHero extends StatelessWidget {
   });
 
   final String username;
+  final AppUser? publicUser;
   final _PlayerStats stats;
   final bool isCurrentUser;
   final bool isFollowing;
@@ -230,17 +250,11 @@ class _ProfileHero extends StatelessWidget {
       glowColor: RvColors.legendary,
       child: Row(
         children: [
-          CircleAvatar(
+          ProfileAvatar(
+            username: username,
+            avatarUrl: publicUser?.avatarUrl,
             radius: 32,
             backgroundColor: RvColors.legendary,
-            child: Text(
-              username.characters.first.toUpperCase(),
-              style: const TextStyle(
-                color: RvColors.obsidian,
-                fontWeight: FontWeight.w900,
-                fontSize: 24,
-              ),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -256,9 +270,18 @@ class _ProfileHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${stats.cityCountry} - level ${stats.level}',
+                  '${publicUser?.city ?? stats.cityCountry} - level ${stats.level}',
                   style: const TextStyle(color: RvColors.mutedText),
                 ),
+                if ((publicUser?.bio ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    publicUser!.bio,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: RvColors.titanium),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

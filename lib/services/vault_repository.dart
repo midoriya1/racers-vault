@@ -15,6 +15,7 @@ import 'spot_integrity_service.dart';
 
 abstract class VaultRepository {
   Future<AppUser?> loadCurrentUser();
+  Future<AppUser?> loadUserById(String userId);
   Future<AppUser> saveProfile(ProfileDraft draft);
   Stream<List<CarSpot>> watchSpots();
   Future<void> addSpot(CarSpot spot);
@@ -71,6 +72,8 @@ class FirebaseVaultRepository implements VaultRepository {
       username: draft.username,
       country: draft.country,
       city: draft.city,
+      bio: draft.bio,
+      avatarUrl: draft.avatarUrl,
     );
 
     await _firestore.collection('users').doc(appUser.uid).set({
@@ -83,6 +86,15 @@ class FirebaseVaultRepository implements VaultRepository {
     }, SetOptions(merge: true));
 
     return appUser;
+  }
+
+  @override
+  Future<AppUser?> loadUserById(String userId) async {
+    final snapshot = await _firestore.collection('users').doc(userId).get();
+    if (!snapshot.exists) {
+      return null;
+    }
+    return _userFromData(userId, snapshot.data()!);
   }
 
   @override
@@ -388,8 +400,18 @@ class InMemoryVaultRepository implements VaultRepository {
       country: draft.country,
       city: draft.city,
       isModerator: true,
+      bio: draft.bio,
+      avatarUrl: draft.avatarLocalPath ?? draft.avatarUrl,
     );
     return _currentUser!;
+  }
+
+  @override
+  Future<AppUser?> loadUserById(String userId) async {
+    if (_currentUser?.uid == userId) {
+      return _currentUser;
+    }
+    return null;
   }
 
   @override
@@ -461,6 +483,8 @@ AppUser _userFromData(String uid, Map<String, dynamic> data) {
     country: data['country'] as String? ?? 'India',
     city: data['city'] as String? ?? 'Mumbai',
     isModerator: data['isModerator'] as bool? ?? false,
+    bio: data['bio'] as String? ?? '',
+    avatarUrl: data['avatarUrl'] as String?,
   );
 }
 

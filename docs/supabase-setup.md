@@ -30,6 +30,8 @@ create table if not exists public.profiles (
   username text not null,
   country text not null,
   city text not null,
+  bio text not null default '',
+  avatar_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -72,6 +74,12 @@ create table if not exists public.spots (
 
 alter table public.profiles enable row level security;
 alter table public.spots enable row level security;
+
+alter table public.profiles
+add column if not exists bio text not null default '';
+
+alter table public.profiles
+add column if not exists avatar_url text;
 
 alter table public.spots
 add column if not exists category text not null default 'Cars';
@@ -341,9 +349,16 @@ insert into storage.buckets (id, name, public)
 values ('spot-media', 'spot-media', true)
 on conflict (id) do update set public = true;
 
+insert into storage.buckets (id, name, public)
+values ('profile-media', 'profile-media', true)
+on conflict (id) do update set public = true;
+
 drop policy if exists "Spot media is readable" on storage.objects;
 drop policy if exists "Users can upload own spot media" on storage.objects;
 drop policy if exists "Users can update own spot media" on storage.objects;
+drop policy if exists "Profile media is readable" on storage.objects;
+drop policy if exists "Users can upload own profile media" on storage.objects;
+drop policy if exists "Users can update own profile media" on storage.objects;
 drop policy if exists "Likes are readable" on public.likes;
 drop policy if exists "Users can create own likes" on public.likes;
 drop policy if exists "Users can delete own likes" on public.likes;
@@ -377,6 +392,28 @@ using (
 )
 with check (
   bucket_id = 'spot-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Profile media is readable"
+on storage.objects for select
+using (bucket_id = 'profile-media');
+
+create policy "Users can upload own profile media"
+on storage.objects for insert
+with check (
+  bucket_id = 'profile-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users can update own profile media"
+on storage.objects for update
+using (
+  bucket_id = 'profile-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'profile-media'
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 

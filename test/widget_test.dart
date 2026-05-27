@@ -65,6 +65,8 @@ Future<void> enterPrototypeApp(WidgetTester tester) async {
     'India',
   );
   await tester.enterText(find.widgetWithText(TextFormField, 'City'), 'Mumbai');
+  await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Enter Racers Vault'));
   await tester.pumpAndSettle();
 }

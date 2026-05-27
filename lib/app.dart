@@ -9,6 +9,7 @@ import 'models/app_user.dart';
 import 'models/car_spot.dart';
 import 'screens/add_spot_page.dart';
 import 'screens/discover_page.dart';
+import 'screens/edit_profile_page.dart';
 import 'screens/feed_page.dart';
 import 'screens/leaderboard_page.dart';
 import 'screens/login_page.dart';
@@ -285,9 +286,43 @@ class _VaultHomePageState extends State<VaultHomePage> {
 
   Future<void> _openModeration() async {
     HapticFeedback.selectionClick();
-    await Navigator.of(context).push(
-      _vaultRoute(ModerationPage(repository: widget.repository)),
-    );
+    await Navigator.of(
+      context,
+    ).push(_vaultRoute(ModerationPage(repository: widget.repository)));
+  }
+
+  Future<void> _openEditProfile() async {
+    final user = _currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final draft = await Navigator.of(
+      context,
+    ).push<ProfileDraft>(_vaultRoute(EditProfilePage(currentUser: user)));
+    if (draft == null) {
+      return;
+    }
+
+    try {
+      final updated = await widget.repository.saveProfile(draft);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentUser = updated;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update profile: $error')),
+      );
+    }
   }
 
   Future<void> _refreshFollowingIds() async {
@@ -370,6 +405,7 @@ class _VaultHomePageState extends State<VaultHomePage> {
         totalPoints: _totalPoints,
         currentUser: user,
         onSignOut: _signOut,
+        onEditProfile: _openEditProfile,
         onOpenModeration: user.isModerator ? _openModeration : null,
       ),
     ];

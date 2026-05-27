@@ -33,13 +33,29 @@ class SupabaseVaultRepository implements VaultRepository {
   }
 
   @override
+  Future<AppUser?> loadUserById(String userId) async {
+    final data = await client
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+    if (data == null) {
+      return null;
+    }
+    return _userFromData(userId, data);
+  }
+
+  @override
   Future<AppUser> saveProfile(ProfileDraft draft) async {
     final user = await _ensureSignedIn();
+    final avatarUrl = await _uploadProfileAvatar(draft, user.id);
     final appUser = AppUser(
       uid: user.id,
       username: draft.username,
       country: draft.country,
       city: draft.city,
+      bio: draft.bio.trim(),
+      avatarUrl: avatarUrl,
     );
 
     await client.from('profiles').upsert({
@@ -47,6 +63,8 @@ class SupabaseVaultRepository implements VaultRepository {
       'username': appUser.username,
       'country': appUser.country,
       'city': appUser.city,
+      'bio': appUser.bio,
+      'avatar_url': appUser.avatarUrl,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
 
@@ -344,6 +362,33 @@ class SupabaseVaultRepository implements VaultRepository {
     return client.storage.from('spot-media').getPublicUrl(objectPath);
   }
 
+  Future<String?> _uploadProfileAvatar(
+    ProfileDraft draft,
+    String userId,
+  ) async {
+    final localPath = draft.avatarLocalPath;
+    if (localPath == null || localPath.isEmpty) {
+      return draft.avatarUrl;
+    }
+
+    final file = File(localPath);
+    final extension = _extensionForPath(localPath);
+    final objectPath = '$userId/avatar$extension';
+
+    await client.storage
+        .from('profile-media')
+        .upload(
+          objectPath,
+          file,
+          fileOptions: FileOptions(
+            contentType: _contentTypeForExtension(extension),
+            upsert: true,
+          ),
+        );
+
+    return client.storage.from('profile-media').getPublicUrl(objectPath);
+  }
+
   String _createSpotId() {
     return 'spot-${DateTime.now().toUtc().microsecondsSinceEpoch}';
   }
@@ -374,6 +419,8 @@ AppUser _userFromData(
     country: data['country'] as String? ?? 'India',
     city: data['city'] as String? ?? 'Mumbai',
     isModerator: isModerator,
+    bio: data['bio'] as String? ?? '',
+    avatarUrl: data['avatar_url'] as String?,
   );
 }
 

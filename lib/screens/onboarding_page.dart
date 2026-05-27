@@ -18,12 +18,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _usernameController = TextEditingController(text: 'You');
   final _countryController = TextEditingController(text: 'India');
   final _cityController = TextEditingController(text: 'Mumbai');
+  final _bioController = TextEditingController();
 
   @override
   void dispose() {
     _usernameController.dispose();
     _countryController.dispose();
     _cityController.dispose();
+    _bioController.dispose();
     super.dispose();
   }
 
@@ -37,6 +39,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         username: _usernameController.text.trim(),
         country: _countryController.text.trim(),
         city: _cityController.text.trim(),
+        bio: _bioController.text.trim(),
       ),
     );
   }
@@ -114,6 +117,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
                           ),
                           textInputAction: TextInputAction.next,
                           validator: _required,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _bioController,
+                          decoration: const InputDecoration(
+                            labelText: 'Bio',
+                            prefixIcon: Icon(Icons.edit_note_rounded),
+                          ),
+                          maxLength: 160,
+                          maxLines: 2,
+                          textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
