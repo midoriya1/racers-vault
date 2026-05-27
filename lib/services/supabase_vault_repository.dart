@@ -28,7 +28,8 @@ class SupabaseVaultRepository implements VaultRepository {
       return null;
     }
 
-    return _userFromData(user.id, data);
+    final isModerator = await _isCurrentUserModerator();
+    return _userFromData(user.id, data, isModerator: isModerator);
   }
 
   @override
@@ -238,6 +239,33 @@ class SupabaseVaultRepository implements VaultRepository {
     });
   }
 
+  @override
+  Future<List<ModerationCase>> loadModerationQueue() async {
+    final rows = await client
+        .from('reports')
+        .select('*, spots(car_name, spotter, media_url)')
+        .order('created_at', ascending: false)
+        .limit(100);
+    return rows.map(_moderationCaseFromData).toList();
+  }
+
+  @override
+  Future<void> updateModerationCaseStatus(
+    ModerationCase moderationCase, {
+    required String status,
+    String note = '',
+  }) async {
+    await client
+        .from('reports')
+        .update({
+          'status': status,
+          'moderation_note': note,
+          'reviewer_id': client.auth.currentUser?.id,
+          'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', moderationCase.id);
+  }
+
   Future<void> _ensureNotDuplicate(CarSpot spot) async {
     final imageHash = spot.imageHash;
     if (imageHash != null && imageHash.isNotEmpty) {
@@ -277,6 +305,15 @@ class SupabaseVaultRepository implements VaultRepository {
     }
 
     throw StateError('You must sign in before using Racers Vault.');
+  }
+
+  Future<bool> _isCurrentUserModerator() async {
+    try {
+      final value = await client.rpc('current_user_is_moderator');
+      return value == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<String?> _uploadSpotMedia(
@@ -326,12 +363,41 @@ SpotComment _commentFromData(Map<String, dynamic> data) {
   );
 }
 
-AppUser _userFromData(String uid, Map<String, dynamic> data) {
+AppUser _userFromData(
+  String uid,
+  Map<String, dynamic> data, {
+  bool isModerator = false,
+}) {
   return AppUser(
     uid: uid,
     username: data['username'] as String? ?? 'Spotter',
     country: data['country'] as String? ?? 'India',
     city: data['city'] as String? ?? 'Mumbai',
+    isModerator: isModerator,
+  );
+}
+
+ModerationCase _moderationCaseFromData(Map<String, dynamic> data) {
+  final createdAt = data['created_at'];
+  final spot = data['spots'];
+  final spotData = spot is Map<String, dynamic> ? spot : <String, dynamic>{};
+  return ModerationCase(
+    id: data['id'] as String? ?? '',
+    spotId: data['spot_id'] as String? ?? '',
+    reporterId: data['reporter_id'] as String? ?? '',
+    type: data['type'] as String? ?? 'other',
+    reason: data['reason'] as String? ?? 'Other',
+    details: data['details'] as String? ?? '',
+    suggestedCarName: data['suggested_car_name'] as String? ?? '',
+    priority: data['priority'] as String? ?? 'low',
+    status: data['status'] as String? ?? 'open',
+    moderationNote: data['moderation_note'] as String? ?? '',
+    createdAt: createdAt is String
+        ? DateTime.tryParse(createdAt) ?? DateTime.now()
+        : DateTime.now(),
+    spotName: spotData['car_name'] as String? ?? 'Unknown spot',
+    spotter: spotData['spotter'] as String? ?? 'Spotter',
+    mediaUrl: spotData['media_url'] as String?,
   );
 }
 

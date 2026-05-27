@@ -16,6 +16,7 @@ class FeedPage extends StatefulWidget {
     required this.currentUser,
     required this.followingUserIds,
     required this.onSpotSelected,
+    required this.onScanRequested,
   });
 
   final List<CarSpot> spots;
@@ -23,6 +24,7 @@ class FeedPage extends StatefulWidget {
   final AppUser currentUser;
   final Set<String> followingUserIds;
   final ValueChanged<CarSpot> onSpotSelected;
+  final VoidCallback onScanRequested;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -100,6 +102,13 @@ class _FeedPageState extends State<FeedPage> {
                 message: _selectedScope == _FeedScope.following
                     ? 'Follow spotters from Rank or spot details to build this feed.'
                     : 'Post the first spot and Racers Vault will turn it into points, rarity, and a vault entry.',
+                actionLabel: _selectedScope == _FeedScope.following
+                    ? null
+                    : 'Scan first spot',
+                actionIcon: Icons.add_a_photo_rounded,
+                onAction: _selectedScope == _FeedScope.following
+                    ? null
+                    : widget.onScanRequested,
               ),
             ),
           )

@@ -4,12 +4,14 @@ class AppUser {
     required this.username,
     required this.country,
     required this.city,
+    this.isModerator = false,
   });
 
   final String uid;
   final String username;
   final String country;
   final String city;
+  final bool isModerator;
 }
 
 class ProfileDraft {

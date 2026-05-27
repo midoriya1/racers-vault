@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'design/rv_colors.dart';
 import 'design/rv_theme.dart';
@@ -11,6 +12,7 @@ import 'screens/discover_page.dart';
 import 'screens/feed_page.dart';
 import 'screens/leaderboard_page.dart';
 import 'screens/login_page.dart';
+import 'screens/moderation_page.dart';
 import 'screens/onboarding_page.dart';
 import 'screens/player_profile_page.dart';
 import 'screens/profile_page.dart';
@@ -166,9 +168,10 @@ class _VaultHomePageState extends State<VaultHomePage> {
       return;
     }
 
+    HapticFeedback.selectionClick();
     final newSpot = await Navigator.of(context).push<CarSpot>(
-      MaterialPageRoute(
-        builder: (_) => AddSpotPage(
+      _vaultRoute(
+        AddSpotPage(
           currentUser: user,
           carRecognitionService: widget.carRecognitionService,
         ),
@@ -249,8 +252,8 @@ class _VaultHomePageState extends State<VaultHomePage> {
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SpotDetailPage(
+      _vaultRoute(
+        SpotDetailPage(
           spot: spot,
           currentUser: user,
           repository: widget.repository,
@@ -267,8 +270,8 @@ class _VaultHomePageState extends State<VaultHomePage> {
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerProfilePage(
+      _vaultRoute(
+        PlayerProfilePage(
           username: username,
           spots: _spots,
           currentUser: user,
@@ -277,6 +280,13 @@ class _VaultHomePageState extends State<VaultHomePage> {
           onFollowChanged: _refreshFollowingIds,
         ),
       ),
+    );
+  }
+
+  Future<void> _openModeration() async {
+    HapticFeedback.selectionClick();
+    await Navigator.of(context).push(
+      _vaultRoute(ModerationPage(repository: widget.repository)),
     );
   }
 
@@ -335,11 +345,13 @@ class _VaultHomePageState extends State<VaultHomePage> {
         currentUser: user,
         followingUserIds: _followingUserIds,
         onSpotSelected: _openSpotDetail,
+        onScanRequested: _openAddSpot,
       ),
       DiscoverPage(
         spots: _spots,
         currentUser: user,
         onSpotSelected: _openSpotDetail,
+        onScanRequested: _openAddSpot,
       ),
       LeaderboardPage(
         spots: _spots,
@@ -351,12 +363,14 @@ class _VaultHomePageState extends State<VaultHomePage> {
         totalPoints: _totalPoints,
         currentUser: user,
         onSpotSelected: _openSpotDetail,
+        onScanRequested: _openAddSpot,
       ),
       ProfilePage(
         spots: _mySpots,
         totalPoints: _totalPoints,
         currentUser: user,
         onSignOut: _signOut,
+        onOpenModeration: user.isModerator ? _openModeration : null,
       ),
     ];
 
@@ -413,6 +427,9 @@ class _VaultHomePageState extends State<VaultHomePage> {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
+          if (index != _selectedIndex) {
+            HapticFeedback.selectionClick();
+          }
           setState(() {
             _selectedIndex = index;
           });
@@ -472,6 +489,31 @@ class _VaultHomePageState extends State<VaultHomePage> {
       _needsLogin = widget.authService.requiresLogin;
     });
   }
+}
+
+PageRoute<T> _vaultRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    pageBuilder: (context, animation, secondaryAnimation) => page,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.035),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 class _PendingUploadBanner extends StatelessWidget {

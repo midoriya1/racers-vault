@@ -58,3 +58,37 @@ class ModerationCaseDraft {
     };
   }
 }
+
+class ModerationCase {
+  const ModerationCase({
+    required this.id,
+    required this.spotId,
+    required this.reporterId,
+    required this.type,
+    required this.reason,
+    required this.priority,
+    required this.status,
+    required this.createdAt,
+    this.details = '',
+    this.suggestedCarName = '',
+    this.moderationNote = '',
+    this.spotName = 'Unknown spot',
+    this.spotter = 'Spotter',
+    this.mediaUrl,
+  });
+
+  final String id;
+  final String spotId;
+  final String reporterId;
+  final String type;
+  final String reason;
+  final String priority;
+  final String status;
+  final DateTime createdAt;
+  final String details;
+  final String suggestedCarName;
+  final String moderationNote;
+  final String spotName;
+  final String spotter;
+  final String? mediaUrl;
+}

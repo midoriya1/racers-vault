@@ -30,6 +30,12 @@ abstract class VaultRepository {
     AppUser user,
     ModerationCaseDraft report,
   );
+  Future<List<ModerationCase>> loadModerationQueue();
+  Future<void> updateModerationCaseStatus(
+    ModerationCase moderationCase, {
+    required String status,
+    String note,
+  });
 }
 
 class FirebaseVaultRepository implements VaultRepository {
@@ -265,6 +271,18 @@ class FirebaseVaultRepository implements VaultRepository {
     });
   }
 
+  @override
+  Future<List<ModerationCase>> loadModerationQueue() async {
+    return [];
+  }
+
+  @override
+  Future<void> updateModerationCaseStatus(
+    ModerationCase moderationCase, {
+    required String status,
+    String note = '',
+  }) async {}
+
   Future<void> _ensureNotDuplicate(CarSpot spot) async {
     final imageHash = spot.imageHash;
     if (imageHash != null && imageHash.isNotEmpty) {
@@ -369,6 +387,7 @@ class InMemoryVaultRepository implements VaultRepository {
       username: draft.username,
       country: draft.country,
       city: draft.city,
+      isModerator: true,
     );
     return _currentUser!;
   }
@@ -421,6 +440,18 @@ class InMemoryVaultRepository implements VaultRepository {
     AppUser user,
     ModerationCaseDraft report,
   ) async {}
+
+  @override
+  Future<List<ModerationCase>> loadModerationQueue() async {
+    return [];
+  }
+
+  @override
+  Future<void> updateModerationCaseStatus(
+    ModerationCase moderationCase, {
+    required String status,
+    String note = '',
+  }) async {}
 }
 
 AppUser _userFromData(String uid, Map<String, dynamic> data) {
@@ -429,6 +460,7 @@ AppUser _userFromData(String uid, Map<String, dynamic> data) {
     username: data['username'] as String? ?? 'Spotter',
     country: data['country'] as String? ?? 'India',
     city: data['city'] as String? ?? 'Mumbai',
+    isModerator: data['isModerator'] as bool? ?? false,
   );
 }
 

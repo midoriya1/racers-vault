@@ -17,12 +17,14 @@ class VaultPage extends StatefulWidget {
     required this.totalPoints,
     required this.currentUser,
     required this.onSpotSelected,
+    required this.onScanRequested,
   });
 
   final List<CarSpot> spots;
   final int totalPoints;
   final AppUser currentUser;
   final ValueChanged<CarSpot> onSpotSelected;
+  final VoidCallback onScanRequested;
 
   @override
   State<VaultPage> createState() => _VaultPageState();
@@ -133,10 +135,13 @@ class _VaultPageState extends State<VaultPage> {
         ),
         const SizedBox(height: 16),
         if (widget.spots.isEmpty)
-          const EmptyState(
+          EmptyState(
             icon: Icons.add_a_photo_rounded,
-            title: 'No personal spots yet',
-            message: 'Tap Spot and add the first car to your vault.',
+            title: 'Your vault is waiting',
+            message: 'Scan a car to create your first collectible garage card.',
+            actionLabel: 'Start scanning',
+            actionIcon: Icons.photo_camera_rounded,
+            onAction: widget.onScanRequested,
           )
         else ...[
           SizedBox(

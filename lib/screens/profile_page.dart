@@ -14,12 +14,14 @@ class ProfilePage extends StatelessWidget {
     required this.totalPoints,
     required this.currentUser,
     required this.onSignOut,
+    this.onOpenModeration,
   });
 
   final List<CarSpot> spots;
   final int totalPoints;
   final AppUser currentUser;
   final VoidCallback onSignOut;
+  final VoidCallback? onOpenModeration;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +126,17 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 18),
               _TrustCenter(summary: trust, spots: spots),
               const SizedBox(height: 18),
+              if (currentUser.isModerator && onOpenModeration != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onOpenModeration,
+                    icon: const Icon(Icons.admin_panel_settings_rounded),
+                    label: const Text('Open mod console'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
