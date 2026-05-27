@@ -20,12 +20,13 @@ const upload = multer({
 
 app.use(cors());
 app.use(express.json());
-app.use(requireSharedSecret);
-app.use(rateLimitRequests);
 
 app.get('/health', (request, response) => {
   response.json({ ok: true });
 });
+
+app.use(requireSharedSecret);
+app.use(rateLimitRequests);
 
 app.post('/recognize-car', upload.single('image'), async (request, response) => {
   try {
