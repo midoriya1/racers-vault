@@ -441,7 +441,7 @@ class _AddSpotPageState extends State<AddSpotPage>
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
           children: [
             AspectRatio(
-              aspectRatio: 1.42,
+              aspectRatio: 0.92,
               child: _ScannerViewport(
                 spot: preview,
                 imagePath: _privacySafeImagePath ?? _selectedImage?.path,
@@ -675,121 +675,396 @@ class _ScannerViewport extends StatelessWidget {
     return AnimatedBuilder(
       animation: scannerAnimation,
       builder: (context, _) {
-        final pulse =
-            0.5 +
-            (0.5 - (scannerAnimation.value - 0.5).abs()); // 0.5 -> 1 -> 0.5
+        final phase = scannerAnimation.value;
+        final pulse = 0.5 + (0.5 - (phase - 0.5).abs());
         final hudColor = isScanning ? RvColors.electricBlue : rarityColor;
+        final hasImage = imagePath != null && imagePath!.isNotEmpty;
+        final hasResult = !spot.carName.startsWith('AI ');
 
         return RvGlass(
           padding: EdgeInsets.zero,
-          radius: 26,
+          radius: 30,
           clipBehavior: Clip.antiAlias,
-          borderColor: hudColor.withValues(alpha: 0.28 + pulse * 0.28),
+          borderColor: hudColor.withValues(alpha: 0.22 + pulse * 0.34),
           glowColor: hudColor,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (imagePath == null || imagePath!.isEmpty)
-                CarPoster(spot: spot)
+              if (!hasImage)
+                _ScannerEmptyPreview(color: hudColor, progress: phase)
               else
-                Image.file(File(imagePath!), fit: BoxFit.cover),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.78),
-                    ],
+                AnimatedScale(
+                  scale: isScanning ? 1.035 : 1,
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  child: Image.file(
+                    File(imagePath!),
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.medium,
                   ),
                 ),
+              _ScannerLightingOverlay(
+                color: hudColor,
+                progress: phase,
+                isScanning: isScanning,
               ),
               CustomPaint(
                 painter: _ScannerHudPainter(
                   color: hudColor,
                   isScanning: isScanning,
-                  progress: scannerAnimation.value,
+                  progress: phase,
                   pulse: pulse,
                 ),
               ),
               Positioned(
-                left: 16,
-                top: 14,
-                child: _HudPill(
-                  icon: Icons.center_focus_strong_rounded,
-                  label: statusLabel,
-                  color: hudColor,
-                ),
-              ),
-              Positioned(
-                right: 16,
-                top: 14,
-                child: _HudPill(
-                  icon: Icons.memory_rounded,
-                  label: confidence <= 0
-                      ? 'AI --'
-                      : 'AI ${(confidence * 100).round()}%',
-                  color: RvColors.electricBlue,
-                ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
+                left: 18,
+                right: 18,
+                top: 16,
                 child: Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            spot.carName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(color: Colors.white),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            '${spot.category} - ${spot.city}, ${spot.country}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: RvColors.titanium,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _AiConfidenceRail(
-                            confidence: confidence,
-                            color: RvColors.electricBlue,
-                          ),
-                        ],
+                      child: _HudPill(
+                        icon: isScanning
+                            ? Icons.radar_rounded
+                            : Icons.center_focus_strong_rounded,
+                        label: statusLabel,
+                        color: hudColor,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(
-                        begin: 0.96,
-                        end: spot.carName.startsWith('AI ') ? 1 : 1.04,
-                      ),
-                      duration: const Duration(milliseconds: 520),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, scale, child) {
-                        return Transform.scale(scale: scale, child: child);
-                      },
-                      child: RarityChip(label: spot.rarity),
+                    const SizedBox(width: 8),
+                    _HudPill(
+                      icon: Icons.memory_rounded,
+                      label: confidence <= 0
+                          ? 'AI --'
+                          : 'AI ${(confidence * 100).round()}%',
+                      color: RvColors.electricBlue,
                     ),
                   ],
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                top: 62,
+                child: _ScanProgressStrip(
+                  isScanning: isScanning,
+                  hasResult: hasResult,
+                  color: hudColor,
+                  progress: isScanning
+                      ? phase
+                      : hasResult
+                      ? 1
+                      : 0,
+                ),
+              ),
+              Center(
+                child: _FocusReticle(
+                  color: hudColor,
+                  progress: phase,
+                  isScanning: isScanning,
+                  hasResult: hasResult,
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                bottom: 18,
+                child: _ScannerResultTray(
+                  spot: spot,
+                  confidence: confidence,
+                  color: hudColor,
+                  hasResult: hasResult,
                 ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _ScannerEmptyPreview extends StatelessWidget {
+  const _ScannerEmptyPreview({required this.color, required this.progress});
+
+  final Color color;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment(
+            0.1 + math.sin(progress * math.pi * 2) * 0.08,
+            -0.35,
+          ),
+          radius: 1.08,
+          colors: [
+            color.withValues(alpha: 0.22),
+            RvColors.graphite,
+            RvColors.obsidian,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _ScannerEmptyPainter(color: color, progress: progress),
+            ),
+          ),
+          Center(
+            child: Container(
+              width: 116,
+              height: 116,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.34)),
+                color: Colors.black.withValues(alpha: 0.24),
+              ),
+              child: Icon(Icons.add_a_photo_rounded, color: color, size: 42),
+            ),
+          ),
+          Positioned(
+            left: 28,
+            right: 28,
+            bottom: 112,
+            child: Text(
+              'Add a street photo to begin AI recognition',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: RvColors.text,
+                fontWeight: FontWeight.w900,
+                height: 1.15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScannerLightingOverlay extends StatelessWidget {
+  const _ScannerLightingOverlay({
+    required this.color,
+    required this.progress,
+    required this.isScanning,
+  });
+
+  final Color color;
+  final double progress;
+  final bool isScanning;
+
+  @override
+  Widget build(BuildContext context) {
+    final sweepX = -1.2 + progress * 2.4;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.22),
+                Colors.transparent,
+                Colors.black.withValues(alpha: 0.86),
+              ],
+            ),
+          ),
+        ),
+        if (isScanning)
+          Transform.translate(
+            offset: Offset(sweepX * 90, 0),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.transparent,
+                    color.withValues(alpha: 0.13),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ScanProgressStrip extends StatelessWidget {
+  const _ScanProgressStrip({
+    required this.isScanning,
+    required this.hasResult,
+    required this.color,
+    required this.progress,
+  });
+
+  final bool isScanning;
+  final bool hasResult;
+  final Color color;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(99),
+      child: SizedBox(
+        height: 5,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: Colors.black.withValues(alpha: 0.34)),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress.clamp(0.06, 1).toDouble(),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withValues(alpha: 0.28),
+                      color,
+                      hasResult ? RvColors.legendary : RvColors.electricBlue,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FocusReticle extends StatelessWidget {
+  const _FocusReticle({
+    required this.color,
+    required this.progress,
+    required this.isScanning,
+    required this.hasResult,
+  });
+
+  final Color color;
+  final double progress;
+  final bool isScanning;
+  final bool hasResult;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = hasResult
+        ? 188.0
+        : 148.0 + math.sin(progress * math.pi * 2) * 10;
+    return IgnorePointer(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: color.withValues(alpha: isScanning ? 0.42 : 0.26),
+            width: 1.4,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: isScanning ? 0.18 : 0.08),
+              blurRadius: 28,
+              spreadRadius: -8,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: hasResult ? RvColors.legendary : color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScannerResultTray extends StatelessWidget {
+  const _ScannerResultTray({
+    required this.spot,
+    required this.confidence,
+    required this.color,
+    required this.hasResult,
+  });
+
+  final CarSpot spot;
+  final double confidence;
+  final Color color;
+  final bool hasResult;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: hasResult ? 0.64 : 0.48),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.26)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  spot.carName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${spot.category} - ${spot.city}, ${spot.country}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: RvColors.titanium,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _AiConfidenceRail(confidence: confidence, color: color),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.94, end: hasResult ? 1.04 : 1),
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeOutCubic,
+            builder: (context, scale, child) {
+              return Transform.scale(scale: scale, child: child);
+            },
+            child: RarityChip(label: spot.rarity),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -840,6 +1115,45 @@ class _AiConfidenceRail extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _ScannerEmptyPainter extends CustomPainter {
+  const _ScannerEmptyPainter({required this.color, required this.progress});
+
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = color.withValues(alpha: 0.08)
+      ..strokeWidth = 1;
+    for (double x = -size.width; x < size.width * 2; x += 44) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height * 0.5, size.height),
+        gridPaint,
+      );
+    }
+    for (double y = 24; y < size.height; y += 50) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y - 30), gridPaint);
+    }
+
+    final orbPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = color.withValues(alpha: 0.16);
+    final center = Offset(size.width / 2, size.height / 2);
+    for (var i = 0; i < 3; i++) {
+      final radius = 72.0 + i * 42 + math.sin(progress * math.pi * 2) * 4;
+      canvas.drawCircle(center, radius, orbPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScannerEmptyPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.progress != progress;
   }
 }
 
