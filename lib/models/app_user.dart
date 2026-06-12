@@ -7,6 +7,8 @@ class AppUser {
     this.isModerator = false,
     this.bio = '',
     this.avatarUrl,
+    this.trustScore = 70,
+    this.trustStrikes = 0,
   });
 
   final String uid;
@@ -16,6 +18,32 @@ class AppUser {
   final bool isModerator;
   final String bio;
   final String? avatarUrl;
+  final int trustScore;
+  final int trustStrikes;
+
+  AppUser copyWith({
+    String? uid,
+    String? username,
+    String? country,
+    String? city,
+    bool? isModerator,
+    String? bio,
+    String? avatarUrl,
+    int? trustScore,
+    int? trustStrikes,
+  }) {
+    return AppUser(
+      uid: uid ?? this.uid,
+      username: username ?? this.username,
+      country: country ?? this.country,
+      city: city ?? this.city,
+      isModerator: isModerator ?? this.isModerator,
+      bio: bio ?? this.bio,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      trustScore: trustScore ?? this.trustScore,
+      trustStrikes: trustStrikes ?? this.trustStrikes,
+    );
+  }
 }
 
 class ProfileDraft {

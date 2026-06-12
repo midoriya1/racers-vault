@@ -282,6 +282,24 @@ class SupabaseVaultRepository implements VaultRepository {
           'reviewed_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', moderationCase.id);
+
+    if (status == 'resolved' &&
+        {
+          'authenticity',
+          'fake_location',
+          'stolen_photo',
+          'unsafe_content',
+        }.contains(moderationCase.type)) {
+      await client.rpc(
+        'penalize_reported_spot',
+        params: {
+          'target_spot_id': moderationCase.spotId,
+          'moderation_reason': note.isEmpty
+              ? 'Report confirmed by moderator.'
+              : note,
+        },
+      );
+    }
   }
 
   Future<void> _ensureNotDuplicate(CarSpot spot) async {
@@ -421,6 +439,8 @@ AppUser _userFromData(
     isModerator: isModerator,
     bio: data['bio'] as String? ?? '',
     avatarUrl: data['avatar_url'] as String?,
+    trustScore: data['trust_score'] as int? ?? 70,
+    trustStrikes: data['trust_strikes'] as int? ?? 0,
   );
 }
 

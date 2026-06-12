@@ -35,19 +35,23 @@ Future<_AppServices> _createAppServices({
   required String supabaseUrl,
   required String supabaseAnonKey,
 }) async {
-  if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
+  final cleanRecognizerUrl = _cleanUrlDefine(recognizerUrl);
+  final cleanSupabaseUrl = _cleanUrlDefine(supabaseUrl);
+  final cleanSupabaseAnonKey = supabaseAnonKey.trim();
+
+  if (cleanSupabaseUrl.isNotEmpty && cleanSupabaseAnonKey.isNotEmpty) {
     final client = SupabaseClient(
-      supabaseUrl,
-      supabaseAnonKey,
+      cleanSupabaseUrl,
+      cleanSupabaseAnonKey,
       authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
     );
     return _AppServices(
       repository: SupabaseVaultRepository(client: client),
       authService: SupabaseVaultAuthService(client),
-      carRecognitionService: recognizerUrl.isEmpty
+      carRecognitionService: cleanRecognizerUrl.isEmpty
           ? const MockCarRecognitionService()
           : HttpCarRecognitionService(
-              Uri.parse(recognizerUrl),
+              Uri.parse(cleanRecognizerUrl),
               accessTokenProvider: () =>
                   client.auth.currentSession?.accessToken,
             ),
@@ -58,10 +62,17 @@ Future<_AppServices> _createAppServices({
   return _AppServices(
     repository: FirebaseVaultRepository(),
     authService: const AnonymousVaultAuthService(),
-    carRecognitionService: recognizerUrl.isEmpty
+    carRecognitionService: cleanRecognizerUrl.isEmpty
         ? const MockCarRecognitionService()
-        : HttpCarRecognitionService(Uri.parse(recognizerUrl)),
+        : HttpCarRecognitionService(Uri.parse(cleanRecognizerUrl)),
   );
+}
+
+String _cleanUrlDefine(String value) {
+  return value
+      .trim()
+      .replaceFirst(RegExp(r'^https://\s+'), 'https://')
+      .replaceFirst(RegExp(r'^http://\s+'), 'http://');
 }
 
 class _AppServices {

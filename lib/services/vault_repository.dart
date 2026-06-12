@@ -80,6 +80,8 @@ class FirebaseVaultRepository implements VaultRepository {
       'username': appUser.username,
       'country': appUser.country,
       'city': appUser.city,
+      'bio': appUser.bio,
+      'avatarUrl': appUser.avatarUrl,
       'totalPoints': 0,
       'updatedAt': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
@@ -485,6 +487,8 @@ AppUser _userFromData(String uid, Map<String, dynamic> data) {
     isModerator: data['isModerator'] as bool? ?? false,
     bio: data['bio'] as String? ?? '',
     avatarUrl: data['avatarUrl'] as String?,
+    trustScore: data['trustScore'] as int? ?? 70,
+    trustStrikes: data['trustStrikes'] as int? ?? 0,
   );
 }
 

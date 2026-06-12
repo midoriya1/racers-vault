@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/registry_data.dart';
 import '../design/rv_colors.dart';
 import '../models/app_user.dart';
 import '../models/car_spot.dart';
@@ -16,6 +17,7 @@ class ProfilePage extends StatelessWidget {
     required this.currentUser,
     required this.onSignOut,
     required this.onEditProfile,
+    required this.onOpenShop,
     this.onOpenModeration,
   });
 
@@ -24,6 +26,7 @@ class ProfilePage extends StatelessWidget {
   final AppUser currentUser;
   final VoidCallback onSignOut;
   final VoidCallback onEditProfile;
+  final VoidCallback onOpenShop;
   final VoidCallback? onOpenModeration;
 
   @override
@@ -34,6 +37,7 @@ class ProfilePage extends StatelessWidget {
         : spots.reduce((a, b) => a.points >= b.points ? a : b).carName;
     final badges = _earnedBadges(spots);
     final trust = _TrustSummary.fromSpots(spots);
+    final registry = RegistryProgress.fromSpots(spots);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 96),
@@ -89,16 +93,107 @@ class ProfilePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onEditProfile,
-                  icon: const Icon(Icons.edit_rounded),
-                  label: const Text('Edit profile'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onEditProfile,
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onOpenShop,
+                      icon: const Icon(Icons.storefront_rounded),
+                      label: const Text('Shop'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: onOpenShop,
+                borderRadius: BorderRadius.circular(8),
+                child: RvGlass(
+                  padding: const EdgeInsets.all(12),
+                  radius: 8,
+                  glowColor: RvColors.legendary,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: RvColors.legendary.withValues(alpha: 0.65),
+                            width: 3,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.storefront_rounded,
+                          color: RvColors.legendary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Open Vault Shop',
+                              style: TextStyle(
+                                color: RvColors.text,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Frames, themes, bundles, badges, and scanner skins.',
+                              style: TextStyle(color: RvColors.mutedText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: RvColors.text,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
               _LevelPanel(progression: progression),
+              const SizedBox(height: 16),
+              _ProfileMenuCard(
+                icon: Icons.emoji_events_rounded,
+                title: 'Leaderboard',
+                trailing: 'Ranked',
+                subtitle: 'Compete in city, country, and global tables.',
+                color: RvColors.legendary,
+              ),
+              const SizedBox(height: 10),
+              _ProfileMenuCard(
+                icon: Icons.manage_search_rounded,
+                title: 'Registry',
+                trailing: '${registry.vehiclePercent}%',
+                subtitle:
+                    '${registry.uniqueVehicles}/${registry.totalVehicles} vehicles identified',
+                color: RvColors.electricBlue,
+              ),
+              const SizedBox(height: 10),
+              _ProfileMenuCard(
+                icon: Icons.style_rounded,
+                title: 'Cards',
+                trailing: '${registry.uniqueCards}/${registry.totalCards}',
+                subtitle: 'Garage cards unlocked from unique spots.',
+                color: RvColors.crimson,
+              ),
+              const SizedBox(height: 10),
+              _CommunityPanel(onOpenShop: onOpenShop),
               const SizedBox(height: 16),
               ProfileStat(label: 'Vault points', value: '$totalPoints'),
               ProfileStat(label: 'XP earned', value: '${progression.xp}'),
@@ -236,6 +331,183 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+class _ProfileMenuCard extends StatelessWidget {
+  const _ProfileMenuCard({
+    required this.icon,
+    required this.title,
+    required this.trailing,
+    required this.subtitle,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String trailing;
+  final String subtitle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: RvColors.text,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: RvColors.mutedText),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            trailing,
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right_rounded, color: RvColors.mutedText),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommunityPanel extends StatelessWidget {
+  const _CommunityPanel({required this.onOpenShop});
+
+  final VoidCallback onOpenShop;
+
+  @override
+  Widget build(BuildContext context) {
+    return RvGlass(
+      padding: const EdgeInsets.all(12),
+      radius: 8,
+      glowColor: RvColors.electricBlue,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.forum_rounded, color: RvColors.electricBlue),
+              SizedBox(width: 8),
+              Text(
+                'Community',
+                style: TextStyle(
+                  color: RvColors.text,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _CommunityRow(
+            icon: Icons.campaign_rounded,
+            title: 'News',
+            subtitle: 'Weekly hunts, app updates, and event drops.',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('News hub is coming soon.')),
+              );
+            },
+          ),
+          _CommunityRow(
+            icon: Icons.storefront_rounded,
+            title: 'Cosmetics',
+            subtitle: 'Preview frames, themes, badges, and scanner skins.',
+            onTap: onOpenShop,
+          ),
+          _CommunityRow(
+            icon: Icons.feedback_rounded,
+            title: 'Feedback',
+            subtitle: 'Send issues, ideas, and correction requests.',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Feedback inbox is coming soon.')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommunityRow extends StatelessWidget {
+  const _CommunityRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, color: RvColors.titanium, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: RvColors.text,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: RvColors.mutedText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: RvColors.mutedText),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TrustCenter extends StatelessWidget {
   const _TrustCenter({required this.summary, required this.spots});
 
@@ -244,6 +516,7 @@ class _TrustCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tier = _TrustTier.fromSummary(summary);
     final reviewSpots = spots
         .where(
           (spot) =>
@@ -274,10 +547,48 @@ class _TrustCenter extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Protect your vault with camera captures, duplicate checks, reports, and AI correction review.',
+            'Build community trust with camera captures, duplicate checks, reports, and AI correction review.',
             style: TextStyle(color: RvColors.mutedText, height: 1.3),
           ),
           const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: tier.color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: tier.color.withValues(alpha: 0.36)),
+            ),
+            child: Row(
+              children: [
+                Icon(tier.icon, color: tier.color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tier.label,
+                        style: TextStyle(
+                          color: tier.color,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tier.message,
+                        style: const TextStyle(
+                          color: RvColors.mutedText,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -287,8 +598,8 @@ class _TrustCenter extends StatelessWidget {
             mainAxisSpacing: 8,
             children: [
               _TrustMetric(
-                label: 'Avg trust',
-                value: '${summary.averageTrust}%',
+                label: spots.isEmpty ? 'Start trust' : 'Avg trust',
+                value: spots.isEmpty ? 'Ready' : '${summary.averageTrust}%',
               ),
               _TrustMetric(label: 'Verified', value: '${summary.verified}'),
               _TrustMetric(label: 'Needs review', value: '${summary.review}'),
@@ -339,9 +650,9 @@ class _TrustMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
       child: Row(
         children: [
@@ -521,6 +832,53 @@ class _TrustSummary {
                     spot.perceptualHash!.isNotEmpty),
           )
           .length,
+    );
+  }
+}
+
+class _TrustTier {
+  const _TrustTier({
+    required this.label,
+    required this.message,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String message;
+  final IconData icon;
+  final Color color;
+
+  factory _TrustTier.fromSummary(_TrustSummary summary) {
+    if (summary.hashed == 0) {
+      return const _TrustTier(
+        label: 'Starter Spotter',
+        message: 'Scan your first real spot to begin building trust.',
+        icon: Icons.flag_rounded,
+        color: RvColors.electricBlue,
+      );
+    }
+    if (summary.averageTrust >= 85 && summary.review == 0) {
+      return const _TrustTier(
+        label: 'Verified Curator',
+        message: 'Your vault has strong originality signals.',
+        icon: Icons.workspace_premium_rounded,
+        color: RvColors.emerald,
+      );
+    }
+    if (summary.averageTrust >= 70) {
+      return const _TrustTier(
+        label: 'Trusted Spotter',
+        message: 'Keep using live captures to climb toward curator status.',
+        icon: Icons.verified_user_rounded,
+        color: RvColors.legendary,
+      );
+    }
+    return const _TrustTier(
+      label: 'Review Builder',
+      message: 'A few spots need cleaner originality signals.',
+      icon: Icons.manage_search_rounded,
+      color: RvColors.hyperOrange,
     );
   }
 }

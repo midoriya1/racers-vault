@@ -83,6 +83,13 @@ class _AddSpotPageState extends State<AddSpotPage>
       return;
     }
 
+    if (!_canClaimSpot) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_claimBlockedReason)));
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -94,7 +101,7 @@ class _AddSpotPageState extends State<AddSpotPage>
       return;
     }
 
-    final points = rarityPoints[_rarity]!;
+    final points = _claimPoints;
     final colors = spotColors[_rarity]!;
     Navigator.of(context).pop(
       CarSpot(
@@ -144,8 +151,8 @@ class _AddSpotPageState extends State<AddSpotPage>
   Future<void> _pickImage(ImageSource source) async {
     final image = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 82,
-      maxWidth: 1800,
+      imageQuality: source == ImageSource.camera ? 82 : null,
+      maxWidth: source == ImageSource.camera ? 1800 : null,
     );
 
     if (image == null || !mounted) {
@@ -304,11 +311,7 @@ class _AddSpotPageState extends State<AddSpotPage>
       barrierColor: Colors.black.withValues(alpha: 0.74),
       transitionDuration: const Duration(milliseconds: 520),
       pageBuilder: (context, animation, secondaryAnimation) {
-        return _RarityRevealDialog(
-          result: result,
-          points:
-              rarityPoints[result.suggestedRarity] ?? rarityPoints[_rarity]!,
-        );
+        return _RarityRevealDialog(result: result, points: _claimPoints);
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
@@ -386,7 +389,7 @@ class _AddSpotPageState extends State<AddSpotPage>
       category: _category,
       carName: _carName.isEmpty ? 'AI will identify this spot' : _carName,
       rarity: _rarity,
-      points: rarityPoints[_rarity]!,
+      points: _claimPoints,
       caption: 'Preview',
       colorA: spotColors[_rarity]!.$1,
       colorB: spotColors[_rarity]!.$2,
@@ -441,7 +444,7 @@ class _AddSpotPageState extends State<AddSpotPage>
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
           children: [
             AspectRatio(
-              aspectRatio: 0.92,
+              aspectRatio: 1.18,
               child: _ScannerViewport(
                 spot: preview,
                 imagePath: _privacySafeImagePath ?? _selectedImage?.path,
@@ -479,12 +482,21 @@ class _AddSpotPageState extends State<AddSpotPage>
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            const Text(
+              'Imported photos pass extra originality checks before they can be claimed.',
+              style: TextStyle(
+                color: RvColors.mutedText,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 12),
             _AiResultPanel(
               carName: _carName,
               category: _category,
               rarity: _rarity,
-              points: rarityPoints[_rarity]!,
+              points: _claimPoints,
               isRecognizing: _isRecognizing,
               isInspecting: _isInspecting,
               hasImage: _selectedImage != null,
@@ -496,6 +508,7 @@ class _AddSpotPageState extends State<AddSpotPage>
             const SizedBox(height: 12),
             _SafetyPanel(
               recognition: _selectedRecognition,
+              integrity: _spotIntegrity,
               locationIntegrity: _locationIntegrity,
               trustScore: _computedTrustScore,
               verificationStatus: _computedVerificationStatus,
@@ -521,7 +534,7 @@ class _AddSpotPageState extends State<AddSpotPage>
             const SizedBox(height: 12),
             _RarityScorePanel(
               rarity: _rarity,
-              points: rarityPoints[_rarity]!,
+              points: _claimPoints,
               city: _city,
               country: _country,
             ),
@@ -543,11 +556,12 @@ class _AddSpotPageState extends State<AddSpotPage>
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _isRecognizing || _isInspecting
+                      onPressed:
+                          _isRecognizing || _isInspecting || !_canClaimSpot
                           ? null
                           : _submit,
                       icon: const Icon(Icons.bolt_rounded),
-                      label: Text('Claim ${rarityPoints[_rarity]} XP'),
+                      label: Text('Claim $_claimPoints XP'),
                     ),
                   ),
                 ],
@@ -579,6 +593,57 @@ class _AddSpotPageState extends State<AddSpotPage>
       }
     }
     return score.clamp(0, 100);
+  }
+
+  int get _claimPoints {
+    final base = rarityPoints[_rarity]!;
+    if (_spotIntegrity == null) {
+      return base;
+    }
+    final trustMultiplier = (_computedTrustScore / 100)
+        .clamp(0.45, 1)
+        .toDouble();
+    final sourceMultiplier = _spotIntegrity?.captureSource == 'gallery'
+        ? 0.7
+        : 1.0;
+    return math.max(10, (base * trustMultiplier * sourceMultiplier).round());
+  }
+
+  bool get _canClaimSpot {
+    if (_selectedImage == null ||
+        _carName.isEmpty ||
+        _selectedRecognition == null) {
+      return false;
+    }
+    return _originalityBlockReason == null;
+  }
+
+  String get _claimBlockedReason {
+    if (_selectedImage == null) {
+      return 'Add a photo before posting.';
+    }
+    if (_carName.isEmpty || _selectedRecognition == null) {
+      return 'Let AI identify and verify the spot first.';
+    }
+    return _originalityBlockReason ??
+        'This image could not pass originality checks.';
+  }
+
+  String? get _originalityBlockReason {
+    final recognition = _selectedRecognition;
+    if (recognition == null) {
+      return null;
+    }
+    if (recognition.syntheticImageRisk >= 0.65) {
+      return 'This looks AI-generated, so it cannot be claimed.';
+    }
+    if (recognition.manipulationRisk >= 0.65) {
+      return 'This photo looks edited or reposted, so it cannot be claimed.';
+    }
+    if (_computedTrustScore < 45) {
+      return 'This image has a low originality score. Use a live camera capture.';
+    }
+    return null;
   }
 
   String get _computedVerificationStatus {
@@ -635,6 +700,10 @@ class _AddSpotPageState extends State<AddSpotPage>
     if (recognition?.blurStatus == 'processed') {
       notes.add('Public image was automatically privacy blurred.');
     }
+    final metadataNotes = _spotIntegrity?.metadataNotes.trim();
+    if (metadataNotes != null && metadataNotes.isNotEmpty) {
+      notes.add(metadataNotes);
+    }
     return notes.join(' ');
   }
 
@@ -676,16 +745,15 @@ class _ScannerViewport extends StatelessWidget {
       animation: scannerAnimation,
       builder: (context, _) {
         final phase = scannerAnimation.value;
-        final pulse = 0.5 + (0.5 - (phase - 0.5).abs());
         final hudColor = isScanning ? RvColors.electricBlue : rarityColor;
         final hasImage = imagePath != null && imagePath!.isNotEmpty;
         final hasResult = !spot.carName.startsWith('AI ');
 
         return RvGlass(
           padding: EdgeInsets.zero,
-          radius: 30,
+          radius: 24,
           clipBehavior: Clip.antiAlias,
-          borderColor: hudColor.withValues(alpha: 0.22 + pulse * 0.34),
+          borderColor: hudColor.withValues(alpha: isScanning ? 0.58 : 0.22),
           glowColor: hudColor,
           child: Stack(
             fit: StackFit.expand,
@@ -700,6 +768,7 @@ class _ScannerViewport extends StatelessWidget {
                   child: Image.file(
                     File(imagePath!),
                     fit: BoxFit.cover,
+                    alignment: Alignment.center,
                     filterQuality: FilterQuality.medium,
                   ),
                 ),
@@ -713,13 +782,12 @@ class _ScannerViewport extends StatelessWidget {
                   color: hudColor,
                   isScanning: isScanning,
                   progress: phase,
-                  pulse: pulse,
                 ),
               ),
               Positioned(
-                left: 18,
-                right: 18,
-                top: 16,
+                left: 14,
+                right: 14,
+                top: 12,
                 child: Row(
                   children: [
                     Expanded(
@@ -743,9 +811,9 @@ class _ScannerViewport extends StatelessWidget {
                 ),
               ),
               Positioned(
-                left: 18,
-                right: 18,
-                top: 62,
+                left: 16,
+                right: 16,
+                top: 54,
                 child: _ScanProgressStrip(
                   isScanning: isScanning,
                   hasResult: hasResult,
@@ -757,18 +825,10 @@ class _ScannerViewport extends StatelessWidget {
                       : 0,
                 ),
               ),
-              Center(
-                child: _FocusReticle(
-                  color: hudColor,
-                  progress: phase,
-                  isScanning: isScanning,
-                  hasResult: hasResult,
-                ),
-              ),
               Positioned(
-                left: 18,
-                right: 18,
-                bottom: 18,
+                left: 14,
+                right: 14,
+                bottom: 14,
                 child: _ScannerResultTray(
                   spot: spot,
                   confidence: confidence,
@@ -830,11 +890,12 @@ class _ScannerEmptyPreview extends StatelessWidget {
           Positioned(
             left: 28,
             right: 28,
-            bottom: 112,
+            bottom: 34,
             child: Text(
-              'Add a street photo to begin AI recognition',
+              'Add a car photo',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              textScaler: TextScaler.noScaling,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: RvColors.text,
                 fontWeight: FontWeight.w900,
                 height: 1.15,
@@ -870,9 +931,9 @@ class _ScannerLightingOverlay extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withValues(alpha: 0.22),
+                Colors.black.withValues(alpha: 0.08),
                 Colors.transparent,
-                Colors.black.withValues(alpha: 0.86),
+                Colors.black.withValues(alpha: 0.76),
               ],
             ),
           ),
@@ -887,7 +948,7 @@ class _ScannerLightingOverlay extends StatelessWidget {
                   end: Alignment.centerRight,
                   colors: [
                     Colors.transparent,
-                    color.withValues(alpha: 0.13),
+                    color.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -917,80 +978,26 @@ class _ScanProgressStrip extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(99),
       child: SizedBox(
-        height: 5,
+        height: 3,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: Colors.black.withValues(alpha: 0.34)),
+            ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
-              widthFactor: progress.clamp(0.06, 1).toDouble(),
+              widthFactor: progress.clamp(0.03, 1).toDouble(),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      color.withValues(alpha: 0.28),
                       color,
-                      hasResult ? RvColors.legendary : RvColors.electricBlue,
+                      color.withValues(alpha: hasResult ? 0.95 : 0.62),
                     ],
                   ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FocusReticle extends StatelessWidget {
-  const _FocusReticle({
-    required this.color,
-    required this.progress,
-    required this.isScanning,
-    required this.hasResult,
-  });
-
-  final Color color;
-  final double progress;
-  final bool isScanning;
-  final bool hasResult;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = hasResult
-        ? 188.0
-        : 148.0 + math.sin(progress * math.pi * 2) * 10;
-    return IgnorePointer(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutCubic,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: color.withValues(alpha: isScanning ? 0.42 : 0.26),
-            width: 1.4,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: isScanning ? 0.18 : 0.08),
-              blurRadius: 28,
-              spreadRadius: -8,
-            ),
-          ],
-        ),
-        child: Center(
-          child: Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: hasResult ? RvColors.legendary : color,
-            ),
-          ),
         ),
       ),
     );
@@ -1015,14 +1022,29 @@ class _ScannerResultTray extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: hasResult ? 0.64 : 0.48),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withValues(alpha: 0.26)),
+        color: Colors.black.withValues(alpha: hasResult ? 0.62 : 0.46),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.15),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
+            ),
+            child: Icon(
+              hasResult ? Icons.directions_car_rounded : Icons.auto_awesome,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,38 +1052,41 @@ class _ScannerResultTray extends StatelessWidget {
               children: [
                 Text(
                   spot.carName,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  textScaler: TextScaler.noScaling,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    height: 1.05,
+                    height: 1.1,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 3),
                 Text(
                   '${spot.category} - ${spot.city}, ${spot.country}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textScaler: TextScaler.noScaling,
                   style: const TextStyle(
+                    fontSize: 12,
                     color: RvColors.titanium,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 10),
-                _AiConfidenceRail(confidence: confidence, color: color),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0.94, end: hasResult ? 1.04 : 1),
+            tween: Tween<double>(begin: 0.98, end: 1),
             duration: const Duration(milliseconds: 520),
             curve: Curves.easeOutCubic,
             builder: (context, scale, child) {
               return Transform.scale(scale: scale, child: child);
             },
-            child: RarityChip(label: spot.rarity),
+            child: hasResult
+                ? RarityChip(label: spot.rarity)
+                : _MiniConfidenceBadge(confidence: confidence, color: color),
           ),
         ],
       ),
@@ -1069,51 +1094,31 @@ class _ScannerResultTray extends StatelessWidget {
   }
 }
 
-class _AiConfidenceRail extends StatelessWidget {
-  const _AiConfidenceRail({required this.confidence, required this.color});
+class _MiniConfidenceBadge extends StatelessWidget {
+  const _MiniConfidenceBadge({required this.confidence, required this.color});
 
   final double confidence;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: confidence.clamp(0, 1).toDouble()),
-      duration: const Duration(milliseconds: 680),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: SizedBox(
-                height: 4,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ColoredBox(color: Colors.white.withValues(alpha: 0.14)),
-                    FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: value <= 0 ? 0.08 : value,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              color,
-                              RvColors.legendary.withValues(alpha: 0.9),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    final label = confidence <= 0 ? 'AI' : '${(confidence * 100).round()}%';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        textScaler: TextScaler.noScaling,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
@@ -1162,24 +1167,22 @@ class _ScannerHudPainter extends CustomPainter {
     required this.color,
     required this.isScanning,
     required this.progress,
-    required this.pulse,
   });
 
   final Color color;
   final bool isScanning;
   final double progress;
-  final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withValues(alpha: 0.58 + pulse * 0.28)
-      ..strokeWidth = 1.8 + pulse * 0.8
+      ..color = color.withValues(alpha: isScanning ? 0.64 : 0.3)
+      ..strokeWidth = isScanning ? 2.0 : 1.4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    const inset = 18.0;
-    const corner = 42.0;
+    const inset = 12.0;
+    const corner = 26.0;
     final rect = Rect.fromLTWH(
       inset,
       inset,
@@ -1228,18 +1231,6 @@ class _ScannerHudPainter extends CustomPainter {
       paint,
     );
 
-    final gridPaint = Paint()
-      ..color = color.withValues(alpha: 0.12)
-      ..strokeWidth = 1;
-    for (var i = 1; i < 4; i++) {
-      final y = size.height * i / 4;
-      canvas.drawLine(Offset(20, y), Offset(size.width - 20, y), gridPaint);
-    }
-    for (var i = 1; i < 4; i++) {
-      final x = size.width * i / 4;
-      canvas.drawLine(Offset(x, 20), Offset(x, size.height - 20), gridPaint);
-    }
-
     if (isScanning) {
       final scanPaint = Paint()
         ..shader = LinearGradient(
@@ -1247,20 +1238,20 @@ class _ScannerHudPainter extends CustomPainter {
           end: Alignment.centerRight,
           colors: [
             color.withValues(alpha: 0),
-            color.withValues(alpha: 0.58),
+            color.withValues(alpha: 0.38),
             color.withValues(alpha: 0),
           ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, 34));
-      final y = -34 + (size.height + 68) * progress;
-      canvas.drawRect(Rect.fromLTWH(0, y, size.width, 34), scanPaint);
+        ).createShader(Rect.fromLTWH(0, 0, size.width, 18));
+      final y = -18 + (size.height + 36) * progress;
+      canvas.drawRect(Rect.fromLTWH(0, y, size.width, 18), scanPaint);
 
       final linePaint = Paint()
-        ..color = color.withValues(alpha: 0.72)
-        ..strokeWidth = 1.4
+        ..color = color.withValues(alpha: 0.56)
+        ..strokeWidth = 1
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(
-        Offset(24, y + 17),
-        Offset(size.width - 24, y + 17),
+        Offset(24, y + 9),
+        Offset(size.width - 24, y + 9),
         linePaint,
       );
     }
@@ -1270,8 +1261,7 @@ class _ScannerHudPainter extends CustomPainter {
   bool shouldRepaint(covariant _ScannerHudPainter oldDelegate) {
     return oldDelegate.color != color ||
         oldDelegate.isScanning != isScanning ||
-        oldDelegate.progress != progress ||
-        oldDelegate.pulse != pulse;
+        oldDelegate.progress != progress;
   }
 }
 
@@ -1291,9 +1281,9 @@ class _HudPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.48),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.42)),
+        color: Colors.black.withValues(alpha: 0.36),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1302,11 +1292,13 @@ class _HudPill extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textScaler: TextScaler.noScaling,
             style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.7,
             ),
           ),
         ],
@@ -1331,8 +1323,8 @@ class _RarityRevealDialog extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(22),
           child: RvGlass(
-            padding: const EdgeInsets.all(20),
-            radius: 30,
+            padding: const EdgeInsets.all(18),
+            radius: 24,
             borderColor: rarityColor.withValues(alpha: 0.54),
             glowColor: rarityColor,
             child: Stack(
@@ -1353,8 +1345,8 @@ class _RarityRevealDialog extends StatelessWidget {
                         return Transform.scale(scale: scale, child: child);
                       },
                       child: Container(
-                        width: 96,
-                        height: 96,
+                        width: 64,
+                        height: 64,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
@@ -1378,41 +1370,60 @@ class _RarityRevealDialog extends StatelessWidget {
                         child: Icon(
                           _rarityIcon(result.suggestedRarity),
                           color: Colors.white,
-                          size: 42,
+                          size: 30,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     Text(
                       result.suggestedRarity.toUpperCase(),
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineLarge
-                          ?.copyWith(
-                            color: rarityColor,
-                            letterSpacing: 1.6,
-                            fontWeight: FontWeight.w900,
-                          ),
+                      textScaler: TextScaler.noScaling,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: rarityColor,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       result.carName,
                       textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.headlineSmall?.copyWith(color: RvColors.text),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      result.reason,
-                      textAlign: TextAlign.center,
-                      maxLines: 3,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: RvColors.mutedText,
-                        height: 1.35,
+                      textScaler: TextScaler.noScaling,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: RvColors.text,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    if (result.reason.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Text(
+                          result.reason,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textScaler: TextScaler.noScaling,
+                          style: const TextStyle(
+                            color: RvColors.mutedText,
+                            fontSize: 12,
+                            height: 1.25,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
@@ -1439,7 +1450,7 @@ class _RarityRevealDialog extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -1495,6 +1506,7 @@ class _RevealMetric extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textScaler: TextScaler.noScaling,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: color,
               fontWeight: FontWeight.w900,
@@ -1503,6 +1515,7 @@ class _RevealMetric extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
+            textScaler: TextScaler.noScaling,
             style: const TextStyle(
               color: RvColors.mutedText,
               fontSize: 10,
@@ -1776,12 +1789,14 @@ class _LocationPill extends StatelessWidget {
 class _SafetyPanel extends StatelessWidget {
   const _SafetyPanel({
     required this.recognition,
+    required this.integrity,
     required this.locationIntegrity,
     required this.trustScore,
     required this.verificationStatus,
   });
 
   final RecognitionResult? recognition;
+  final SpotIntegrity? integrity;
   final String locationIntegrity;
   final int trustScore;
   final String verificationStatus;
@@ -1817,6 +1832,17 @@ class _SafetyPanel extends StatelessWidget {
         label:
             'AI risk ${(((recognition?.syntheticImageRisk ?? 0) * 100).round())}%',
         isWarning: (recognition?.syntheticImageRisk ?? 0) >= 0.65,
+      ),
+      _SafetyFlag(
+        icon: Icons.history_rounded,
+        label: _metadataLabel(integrity),
+        isWarning:
+            integrity == null ||
+            {
+              'metadata-missing',
+              'metadata-stale',
+              'metadata-suspicious',
+            }.contains(integrity!.metadataStatus),
       ),
     ];
 
@@ -1897,7 +1923,21 @@ class _SafetyPanel extends StatelessWidget {
       'privacy-redacted' => 'Plate/face risk was automatically blurred.',
       'location-review' => 'Location looks suspicious and needs review.',
       'authenticity-review' => 'Image authenticity needs moderator review.',
+      'metadata-review' => 'Photo metadata needs originality review.',
       _ => 'Security checks will run after image selection.',
+    };
+  }
+
+  String _metadataLabel(SpotIntegrity? integrity) {
+    if (integrity == null) {
+      return 'Metadata pending';
+    }
+    return switch (integrity.metadataStatus) {
+      'metadata-ok' => integrity.hasGpsMetadata ? 'EXIF + GPS' : 'EXIF recent',
+      'metadata-missing' => 'No EXIF time',
+      'metadata-stale' => 'Old EXIF time',
+      'metadata-suspicious' => 'EXIF time risk',
+      _ => 'Metadata review',
     };
   }
 }

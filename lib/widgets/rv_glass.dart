@@ -36,7 +36,7 @@ class RvGlass extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0x1FFFFFFF), Color(0x08FFFFFF)],
+          colors: [Color(0x29FFFFFF), Color(0x12FFFFFF)],
         ),
         border: Border.all(color: borderColor ?? RvColors.border),
         boxShadow: [

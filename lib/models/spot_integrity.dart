@@ -5,6 +5,10 @@ class SpotIntegrity {
     required this.captureSource,
     required this.trustScore,
     required this.verificationStatus,
+    this.capturedAt,
+    this.hasGpsMetadata = false,
+    this.metadataStatus = 'unknown',
+    this.metadataNotes = '',
   });
 
   final String imageHash;
@@ -12,4 +16,8 @@ class SpotIntegrity {
   final String captureSource;
   final int trustScore;
   final String verificationStatus;
+  final DateTime? capturedAt;
+  final bool hasGpsMetadata;
+  final String metadataStatus;
+  final String metadataNotes;
 }

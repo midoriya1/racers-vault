@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../data/rarity_data.dart';
+import '../data/registry_data.dart';
 import '../design/rv_colors.dart';
 import '../models/app_user.dart';
 import '../models/car_spot.dart';
 import '../widgets/page_title.dart';
+import '../widgets/rv_glass.dart';
 import '../widgets/spot_card.dart';
 import '../widgets/stats.dart';
 
@@ -103,14 +105,6 @@ class _VaultPageState extends State<VaultPage> {
   int get _uniqueCategoryCount =>
       widget.spots.map((spot) => spot.category).toSet().length;
 
-  int get _collectionCompletion {
-    if (spotCategories.length <= 1) return 0;
-    final totalCollectibleCategories = spotCategories.length - 1;
-    return ((_uniqueCategoryCount / totalCollectibleCategories) * 100)
-        .round()
-        .clamp(0, 100);
-  }
-
   CarSpot? get _rarestSpot {
     if (widget.spots.isEmpty) return null;
     final sorted = [...widget.spots]
@@ -122,6 +116,7 @@ class _VaultPageState extends State<VaultPage> {
   Widget build(BuildContext context) {
     final filteredSpots = _filteredSpots;
     final rarestSpot = _rarestSpot;
+    final registry = RegistryProgress.fromSpots(widget.spots);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 96),
@@ -165,8 +160,8 @@ class _VaultPageState extends State<VaultPage> {
                   icon: Icons.category_rounded,
                 ),
                 ScoreTile(
-                  label: 'Completion',
-                  value: '$_collectionCompletion%',
+                  label: 'Registry',
+                  value: '${registry.vehiclePercent}%',
                   icon: Icons.pie_chart_rounded,
                 ),
                 ScoreTile(
@@ -177,6 +172,8 @@ class _VaultPageState extends State<VaultPage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _RegistryPanel(registry: registry),
           const SizedBox(height: 16),
           _GarageControls(
             searchController: _searchController,
@@ -232,6 +229,112 @@ class _VaultPageState extends State<VaultPage> {
               const SizedBox(height: 14),
             ],
         ],
+      ],
+    );
+  }
+}
+
+class _RegistryPanel extends StatelessWidget {
+  const _RegistryPanel({required this.registry});
+
+  final RegistryProgress registry;
+
+  @override
+  Widget build(BuildContext context) {
+    return RvGlass(
+      padding: const EdgeInsets.all(14),
+      glowColor: RvColors.electricBlue,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.manage_search_rounded,
+                color: RvColors.electricBlue,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Registry',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: RvColors.text,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${registry.vehiclePercent}%',
+                style: const TextStyle(
+                  color: RvColors.electricBlue,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _RegistryProgressRow(
+            label: 'Vehicles identified',
+            value: '${registry.uniqueVehicles}/${registry.totalVehicles}',
+            progress: registry.uniqueVehicles / registry.totalVehicles,
+          ),
+          const SizedBox(height: 10),
+          _RegistryProgressRow(
+            label: 'Collectible cards',
+            value: '${registry.uniqueCards}/${registry.totalCards}',
+            progress: registry.uniqueCards / registry.totalCards,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RegistryProgressRow extends StatelessWidget {
+  const _RegistryProgressRow({
+    required this.label,
+    required this.value,
+    required this.progress,
+  });
+
+  final String label;
+  final String value;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: RvColors.mutedText,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                color: RvColors.text,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            minHeight: 9,
+            value: progress.clamp(0, 1),
+            backgroundColor: RvColors.graphiteLight,
+            color: RvColors.electricBlue,
+          ),
+        ),
       ],
     );
   }

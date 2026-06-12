@@ -98,14 +98,37 @@ class _DiscoverPageState extends State<DiscoverPage> {
           },
         ),
         const SizedBox(height: 14),
+        _DiscoverChallengeSheet(
+          currentUser: widget.currentUser,
+          spots: widget.spots,
+          visibleSpots: _filteredSpots,
+        ),
+        const SizedBox(height: 14),
         if (clusters.isEmpty)
           EmptyState(
-            icon: Icons.map_outlined,
-            title: 'No spots to map yet',
-            message: 'Add the first spot and Discover will light up your city.',
-            actionLabel: 'Add city spot',
-            actionIcon: Icons.radar_rounded,
-            onAction: widget.onScanRequested,
+            icon: widget.spots.isEmpty
+                ? Icons.map_outlined
+                : Icons.filter_alt_off_rounded,
+            title: widget.spots.isEmpty
+                ? 'No spots to map yet'
+                : 'No ${_selectedCategory.toLowerCase()} nearby',
+            message: widget.spots.isEmpty
+                ? 'Add the first spot and Discover will light up your city.'
+                : 'This filter has no map results yet. Clear it to return to every discoverable spot.',
+            actionLabel: widget.spots.isEmpty
+                ? 'Add city spot'
+                : 'Clear filter',
+            actionIcon: widget.spots.isEmpty
+                ? Icons.radar_rounded
+                : Icons.close_rounded,
+            onAction: widget.spots.isEmpty
+                ? widget.onScanRequested
+                : () {
+                    setState(() {
+                      _selectedCategory = allCategory;
+                      _selectedCluster = null;
+                    });
+                  },
           )
         else ...[
           Row(
@@ -170,6 +193,274 @@ class _DiscoverPageState extends State<DiscoverPage> {
     }).toList()..sort((a, b) => b.points.compareTo(a.points));
     return clusters;
   }
+}
+
+class _DiscoverChallengeSheet extends StatelessWidget {
+  const _DiscoverChallengeSheet({
+    required this.currentUser,
+    required this.spots,
+    required this.visibleSpots,
+  });
+
+  final AppUser currentUser;
+  final List<CarSpot> spots;
+  final List<CarSpot> visibleSpots;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _activeChallenges;
+    final inProgress = active
+        .where((challenge) => challenge.progress > 0)
+        .length;
+    final completed = active.where((challenge) => challenge.complete).length;
+    final totalBonus = active.fold<int>(
+      0,
+      (total, challenge) => total + (challenge.complete ? challenge.points : 0),
+    );
+
+    return RvGlass(
+      padding: const EdgeInsets.all(16),
+      glowColor: RvColors.emerald,
+      borderColor: RvColors.emerald.withValues(alpha: 0.28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Daily Challenges',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: RvColors.text,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'View All',
+                style: TextStyle(
+                  color: RvColors.emerald,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Complete challenges to earn bonus points.',
+            style: TextStyle(color: RvColors.mutedText),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _ChallengeStat(
+                value: '${active.length}',
+                label: 'Active',
+                color: RvColors.emerald,
+              ),
+              _ChallengeStat(
+                value: '$inProgress',
+                label: 'In progress',
+                color: RvColors.hyperOrange,
+              ),
+              _ChallengeStat(
+                value: '$completed',
+                label: 'Completed',
+                color: RvColors.electricBlue,
+              ),
+              _ChallengeStat(
+                value: '$totalBonus',
+                label: 'Points',
+                color: RvColors.crimson,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: RvColors.border),
+          const SizedBox(height: 8),
+          for (final challenge in active.take(2)) ...[
+            _DiscoverChallengeRow(challenge: challenge),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            children: [
+              const Icon(Icons.timer_rounded, color: RvColors.emerald),
+              const SizedBox(width: 8),
+              const Text(
+                'Reset in:',
+                style: TextStyle(
+                  color: RvColors.text,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _resetCountdown,
+                style: const TextStyle(
+                  color: RvColors.emerald,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_DiscoverChallenge> get _activeChallenges {
+    final todaySpots = spots
+        .where((spot) => _isSameDay(spot.createdAt))
+        .toList();
+    return [
+      _DiscoverChallenge(
+        title: 'City sweep',
+        description: 'Spot 2 vehicles in ${currentUser.city}.',
+        progress: todaySpots
+            .where((spot) => spot.city == currentUser.city)
+            .length
+            .clamp(0, 2),
+        target: 2,
+        points: 100,
+      ),
+      _DiscoverChallenge(
+        title: 'Rare ping',
+        description: 'Find 1 Rare or better vehicle today.',
+        progress: todaySpots
+            .where((spot) => spot.points >= (rarityPoints['Rare'] ?? 75))
+            .length
+            .clamp(0, 1),
+        target: 1,
+        points: 150,
+      ),
+      _DiscoverChallenge(
+        title: 'Map scout',
+        description: 'Reveal 3 discoverable spots with filters.',
+        progress: visibleSpots.length.clamp(0, 3),
+        target: 3,
+        points: 75,
+      ),
+    ];
+  }
+
+  String get _resetCountdown {
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final remaining = tomorrow.difference(now);
+    final hours = remaining.inHours.toString().padLeft(2, '0');
+    final minutes = remaining.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    return '${hours}h ${minutes}m';
+  }
+}
+
+class _ChallengeStat extends StatelessWidget {
+  const _ChallengeStat({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: RvColors.mutedText, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoverChallengeRow extends StatelessWidget {
+  const _DiscoverChallengeRow({required this.challenge});
+
+  final _DiscoverChallenge challenge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          challenge.complete ? Icons.check_circle_rounded : Icons.flag_rounded,
+          color: challenge.complete ? RvColors.emerald : RvColors.hyperOrange,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                challenge.title,
+                style: const TextStyle(
+                  color: RvColors.text,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                challenge.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: RvColors.mutedText),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '${challenge.progress}/${challenge.target}',
+          style: const TextStyle(
+            color: RvColors.text,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiscoverChallenge {
+  const _DiscoverChallenge({
+    required this.title,
+    required this.description,
+    required this.progress,
+    required this.target,
+    required this.points,
+  });
+
+  final String title;
+  final String description;
+  final int progress;
+  final int target;
+  final int points;
+
+  bool get complete => progress >= target;
+}
+
+bool _isSameDay(DateTime date) {
+  final now = DateTime.now();
+  return date.year == now.year &&
+      date.month == now.month &&
+      date.day == now.day;
 }
 
 class _ClusterMap extends StatelessWidget {

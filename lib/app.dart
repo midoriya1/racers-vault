@@ -18,6 +18,7 @@ import 'screens/onboarding_page.dart';
 import 'screens/player_profile_page.dart';
 import 'screens/profile_page.dart';
 import 'screens/spot_detail_page.dart';
+import 'screens/vault_shop_page.dart';
 import 'screens/vault_page.dart';
 import 'services/auth_service.dart';
 import 'services/car_recognition_service.dart';
@@ -291,6 +292,15 @@ class _VaultHomePageState extends State<VaultHomePage> {
     ).push(_vaultRoute(ModerationPage(repository: widget.repository)));
   }
 
+  Future<void> _openVaultShop() async {
+    final user = _currentUser;
+    if (user == null) {
+      return;
+    }
+    HapticFeedback.selectionClick();
+    await Navigator.of(context).push(_vaultRoute(const VaultShopPage()));
+  }
+
   Future<void> _openEditProfile() async {
     final user = _currentUser;
     if (user == null) {
@@ -305,7 +315,11 @@ class _VaultHomePageState extends State<VaultHomePage> {
     }
 
     try {
-      final updated = await widget.repository.saveProfile(draft);
+      final updated = (await widget.repository.saveProfile(draft)).copyWith(
+        isModerator: user.isModerator,
+        trustScore: user.trustScore,
+        trustStrikes: user.trustStrikes,
+      );
       if (!mounted) {
         return;
       }
@@ -406,9 +420,16 @@ class _VaultHomePageState extends State<VaultHomePage> {
         currentUser: user,
         onSignOut: _signOut,
         onEditProfile: _openEditProfile,
+        onOpenShop: _openVaultShop,
         onOpenModeration: user.isModerator ? _openModeration : null,
       ),
     ];
+    final hideGlobalScanCta = switch (_selectedIndex) {
+      0 => _spots.isEmpty,
+      1 => _spots.isEmpty,
+      3 => _mySpots.isEmpty,
+      _ => false,
+    };
 
     return Scaffold(
       extendBody: true,
@@ -450,16 +471,29 @@ class _VaultHomePageState extends State<VaultHomePage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isPosting ? null : _openAddSpot,
-        backgroundColor: RvColors.crimson,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_a_photo_rounded),
-        label: const Text('Scan'),
-      ),
+      floatingActionButton: hideGlobalScanCta
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _isPosting ? null : _openAddSpot,
+              backgroundColor: RvColors.crimson,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_a_photo_rounded),
+              label: const Text('Scan'),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: NavigationBar(
         backgroundColor: RvColors.carbon.withValues(alpha: 0.92),
         indicatorColor: RvColors.crimson.withValues(alpha: 0.24),
+        elevation: 8,
+        height: 74,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            color: selected ? Colors.white : RvColors.mutedText,
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+          );
+        }),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {

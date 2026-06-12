@@ -32,6 +32,8 @@ create table if not exists public.profiles (
   city text not null,
   bio text not null default '',
   avatar_url text,
+  trust_score integer not null default 70,
+  trust_strikes integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -80,6 +82,12 @@ add column if not exists bio text not null default '';
 
 alter table public.profiles
 add column if not exists avatar_url text;
+
+alter table public.profiles
+add column if not exists trust_score integer not null default 70;
+
+alter table public.profiles
+add column if not exists trust_strikes integer not null default 0;
 
 alter table public.spots
 add column if not exists category text not null default 'Cars';
@@ -145,8 +153,78 @@ create unique index if not exists spots_image_hash_unique
 on public.spots (image_hash)
 where image_hash is not null;
 
+create index if not exists spots_perceptual_hash_idx
+on public.spots (perceptual_hash)
+where perceptual_hash is not null;
+
 create index if not exists spots_user_created_at_idx
 on public.spots (user_id, created_at desc);
+
+create or replace function public.hex_hamming_distance(
+  left_hash text,
+  right_hash text
+)
+returns integer
+language plpgsql
+immutable
+as $$
+declare
+  i integer;
+  left_digit integer;
+  right_digit integer;
+  xor_value integer;
+  distance integer := 0;
+begin
+  if left_hash is null
+    or right_hash is null
+    or length(left_hash) <> length(right_hash)
+    or length(left_hash) = 0 then
+    return 64;
+  end if;
+
+  for i in 1..length(left_hash) loop
+    left_digit := strpos('0123456789abcdef', lower(substr(left_hash, i, 1))) - 1;
+    right_digit := strpos('0123456789abcdef', lower(substr(right_hash, i, 1))) - 1;
+
+    if left_digit < 0 or right_digit < 0 then
+      return 64;
+    end if;
+
+    xor_value := left_digit # right_digit;
+    distance := distance + substr('0112122312232334', xor_value + 1, 1)::integer;
+  end loop;
+
+  return distance;
+end;
+$$;
+
+create or replace function public.prevent_near_duplicate_spot()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.perceptual_hash is not null
+    and exists (
+      select 1
+      from public.spots
+      where perceptual_hash is not null
+        and public.hex_hamming_distance(new.perceptual_hash, perceptual_hash) <= 6
+      limit 1
+    ) then
+    raise exception 'This photo looks too similar to an existing spot.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_near_duplicate_spot_trigger on public.spots;
+
+create trigger prevent_near_duplicate_spot_trigger
+before insert on public.spots
+for each row execute function public.prevent_near_duplicate_spot();
 
 create or replace function public.increment_spot_likes(
   target_spot_id text,
@@ -277,6 +355,71 @@ add column if not exists reviewer_id text references public.profiles(id) on dele
 alter table public.reports
 add column if not exists reviewed_at timestamptz;
 
+create or replace function public.queue_suspicious_spot_report()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  auto_priority text;
+  auto_details text;
+begin
+  if new.capture_source <> 'gallery'
+    and new.trust_score >= 70
+    and new.verification_status not in (
+      'authenticity-review',
+      'gallery-review',
+      'location-review',
+      'metadata-review',
+      'privacy-review'
+    ) then
+    return new;
+  end if;
+
+  auto_priority := case
+    when new.trust_score < 45 then 'high'
+    when new.capture_source = 'gallery' then 'medium'
+    else 'low'
+  end;
+
+  auto_details := concat_ws(
+    ' ',
+    'Automatic originality review.',
+    'Source=' || coalesce(new.capture_source, 'unknown') || '.',
+    'Trust=' || new.trust_score || '.',
+    'Status=' || coalesce(new.verification_status, 'unverified') || '.'
+  );
+
+  insert into public.reports (
+    spot_id,
+    reporter_id,
+    type,
+    reason,
+    details,
+    priority,
+    status
+  )
+  values (
+    new.id,
+    new.user_id,
+    'authenticity',
+    'Automatic originality review',
+    auto_details,
+    auto_priority,
+    'open'
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists queue_suspicious_spot_report_trigger on public.spots;
+
+create trigger queue_suspicious_spot_report_trigger
+after insert on public.spots
+for each row execute function public.queue_suspicious_spot_report();
+
 create table if not exists public.moderators (
   user_id text primary key references public.profiles(id) on delete cascade,
   note text not null default '',
@@ -303,6 +446,50 @@ as $$
 $$;
 
 grant execute on function public.current_user_is_moderator() to authenticated;
+
+create or replace function public.penalize_reported_spot(
+  target_spot_id text,
+  moderation_reason text default 'Report confirmed by moderator.'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_user_id text;
+begin
+  if not public.current_user_is_moderator() then
+    raise exception 'Only moderators can penalize spots.';
+  end if;
+
+  select user_id
+  into target_user_id
+  from public.spots
+  where id = target_spot_id;
+
+  if target_user_id is null then
+    return;
+  end if;
+
+  update public.spots
+  set points = 0,
+      trust_score = 0,
+      verification_status = 'moderation-confirmed',
+      security_notes = trim(
+        coalesce(security_notes, '') || ' ' || moderation_reason
+      )
+  where id = target_spot_id;
+
+  update public.profiles
+  set trust_strikes = trust_strikes + 1,
+      trust_score = greatest(0, trust_score - 15),
+      updated_at = now()
+  where id = target_user_id;
+end;
+$$;
+
+grant execute on function public.penalize_reported_spot(text, text) to authenticated;
 
 drop policy if exists "Profiles are readable" on public.profiles;
 drop policy if exists "Users can create own profile" on public.profiles;
@@ -332,6 +519,17 @@ create policy "Users can create own spots"
 on public.spots for insert
 with check (
   user_id = auth.uid()::text
+  and capture_source in ('camera', 'gallery')
+  and synthetic_image_risk < 0.65
+  and manipulation_risk < 0.65
+  and trust_score >= 45
+  and exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()::text
+      and trust_score >= 20
+      and (trust_score >= 50 or capture_source = 'camera')
+  )
   and public.count_recent_user_actions(
     'spots',
     'user_id',

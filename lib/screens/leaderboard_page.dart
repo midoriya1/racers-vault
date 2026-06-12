@@ -35,6 +35,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   Widget build(BuildContext context) {
     final rankedEntries = _rankedEntries;
     final currentUserRank = _rankForUser(rankedEntries);
+    final currentUserEntry = _entryForUser(rankedEntries);
     final topScore = rankedEntries.isEmpty ? 0 : rankedEntries.first.points;
 
     return ListView(
@@ -83,7 +84,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             title: 'No ranking yet',
             message: 'The first verified spot will claim the top rank.',
           )
-        else
+        else ...[
+          _PinnedRankCard(
+            rank: currentUserRank,
+            period: _period,
+            currentUser: widget.currentUser,
+            entry: currentUserEntry,
+          ),
+          const SizedBox(height: 12),
           for (var i = 0; i < rankedEntries.length; i++)
             _RankingTile(
               rank: i + 1,
@@ -92,6 +100,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                   rankedEntries[i].name == widget.currentUser.username,
               onTap: () => widget.onSpotterSelected(rankedEntries[i].name),
             ),
+        ],
       ],
     );
   }
@@ -162,6 +171,82 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
       return null;
     }
     return index + 1;
+  }
+
+  _RankEntry? _entryForUser(List<_RankEntry> entries) {
+    for (final entry in entries) {
+      if (entry.name == widget.currentUser.username) {
+        return entry;
+      }
+    }
+    return null;
+  }
+}
+
+class _PinnedRankCard extends StatelessWidget {
+  const _PinnedRankCard({
+    required this.rank,
+    required this.period,
+    required this.currentUser,
+    required this.entry,
+  });
+
+  final int? rank;
+  final _RankPeriod period;
+  final AppUser currentUser;
+  final _RankEntry? entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final ranked = rank != null && entry != null;
+    return RvGlass(
+      padding: const EdgeInsets.all(14),
+      glowColor: ranked ? RvColors.legendary : RvColors.electricBlue,
+      borderColor: ranked
+          ? RvColors.legendary.withValues(alpha: 0.42)
+          : RvColors.electricBlue.withValues(alpha: 0.28),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: ranked ? RvColors.legendary : RvColors.graphite,
+            child: Icon(
+              ranked ? Icons.emoji_events_rounded : Icons.flag_rounded,
+              color: ranked ? RvColors.obsidian : RvColors.electricBlue,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ranked ? 'You are #$rank' : 'You are unranked',
+                  style: const TextStyle(
+                    color: RvColors.text,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ranked
+                      ? '${entry!.points} pts from ${entry!.spots} spots'
+                      : 'Post a verified spot to enter ${currentUser.city}.',
+                  style: const TextStyle(color: RvColors.mutedText),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            period == _RankPeriod.weekly ? 'Resets Mon' : 'All time',
+            style: const TextStyle(
+              color: RvColors.legendary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

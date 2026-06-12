@@ -3,16 +3,16 @@ import 'package:flutter/material.dart';
 class RvColors {
   const RvColors._();
 
-  static const obsidian = Color(0xFF050607);
-  static const carbon = Color(0xFF0A0D12);
-  static const graphite = Color(0xFF121722);
-  static const graphiteLight = Color(0xFF1A202C);
+  static const obsidian = Color(0xFF080B10);
+  static const carbon = Color(0xFF10151E);
+  static const graphite = Color(0xFF18202D);
+  static const graphiteLight = Color(0xFF222B39);
   static const titanium = Color(0xFFC7CED8);
   static const text = Color(0xFFE8ECF2);
-  static const mutedText = Color(0xFF8B929E);
-  static const border = Color(0x26FFFFFF);
-  static const glass = Color(0x12FFFFFF);
-  static const glassStrong = Color(0x1CFFFFFF);
+  static const mutedText = Color(0xFFA8B0BC);
+  static const border = Color(0x38FFFFFF);
+  static const glass = Color(0x18FFFFFF);
+  static const glassStrong = Color(0x28FFFFFF);
 
   static const electricBlue = Color(0xFF2F80FF);
   static const crimson = Color(0xFFFF304F);

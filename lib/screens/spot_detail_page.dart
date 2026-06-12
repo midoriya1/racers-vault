@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/rarity_data.dart';
 import '../design/rv_colors.dart';
@@ -227,6 +228,15 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
           children: [
             _CollectibleHero(spot: spot),
             const SizedBox(height: 14),
+            _SocialActionRow(
+              likes: _likes,
+              views: _estimatedViews(spot),
+              comments: _commentsCount,
+              onLike: _isSaving ? null : _toggleLike,
+              liked: _isLiked,
+              onShare: () => _shareSpot(spot),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -269,6 +279,15 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
             _BadgesPanel(spot: spot),
             const SizedBox(height: 14),
             _InfoPanel(spot: spot, commentsCount: _commentsCount),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _shareSpot(spot),
+                icon: const Icon(Icons.ios_share_rounded),
+                label: const Text('Share spot'),
+              ),
+            ),
             const SizedBox(height: 18),
             Text(
               'Comments',
@@ -319,6 +338,117 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  int _estimatedViews(CarSpot spot) {
+    return (spot.points * 7 + _likes * 5 + _commentsCount * 11).clamp(12, 9999);
+  }
+
+  Future<void> _shareSpot(CarSpot spot) async {
+    final text =
+        'Racers Vault spot: ${spot.carName} (${spot.rarity}) in ${spot.city}, ${spot.country} for ${spot.points} pts.';
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) {
+      return;
+    }
+    _showMessage('Spot share text copied.');
+  }
+}
+
+class _SocialActionRow extends StatelessWidget {
+  const _SocialActionRow({
+    required this.likes,
+    required this.views,
+    required this.comments,
+    required this.liked,
+    required this.onLike,
+    required this.onShare,
+  });
+
+  final int likes;
+  final int views;
+  final int comments;
+  final bool liked;
+  final VoidCallback? onLike;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    return RvGlass(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      glowColor: RvColors.crimson,
+      child: Row(
+        children: [
+          _SocialButton(
+            icon: liked
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            label: '$likes likes',
+            onTap: onLike,
+            color: liked ? RvColors.crimson : RvColors.text,
+          ),
+          const SizedBox(width: 10),
+          _SocialButton(
+            icon: Icons.visibility_rounded,
+            label: '$views views',
+            onTap: null,
+            color: RvColors.text,
+          ),
+          const SizedBox(width: 10),
+          _SocialButton(
+            icon: Icons.mode_comment_rounded,
+            label: '$comments',
+            onTap: null,
+            color: RvColors.text,
+          ),
+          const Spacer(),
+          IconButton.filledTonal(
+            onPressed: onShare,
+            icon: const Icon(Icons.ios_share_rounded),
+            tooltip: 'Share',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SocialButton extends StatelessWidget {
+  const _SocialButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: RvColors.text,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
